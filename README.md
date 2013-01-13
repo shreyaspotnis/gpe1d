@@ -6,7 +6,6 @@ Python implementation of the split-step fourier spectral method to solve the Gro
 Dependencies
 ------------
 
-__gpe1d.py__
-numpy
-__harmonic.py__
-numpy, scipy, matplotlib
+__gpe1d.py__ : numpy
+
+__harmonic.py__ : numpy, scipy, matplotlib
