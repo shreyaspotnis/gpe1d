@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 from time import time 
 import gpe1d
 import gpe1d_c
@@ -8,20 +8,10 @@ import sys
 def Prob(psi):
     return psi*np.conj(psi)
 
-def compare(psipy, psic):
-    plt.figure()
-    plt.subplot(311)
-    plt.plot(X,psipy.T)
-    plt.subplot(312)
-    plt.plot(X, psic.T)
-    plt.subplot(313)
-    plt.plot(X, psipy.T-psic.T)
-    plt.show()
-
 def Prob(psi):
     return psi*np.conj(psi)
 
-size = 15 
+size = 16
 nx = 2**size
 dx = 1.0/32.0 
 dt = 0.0005

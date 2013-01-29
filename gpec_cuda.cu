@@ -28,11 +28,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // includes, project
 
 #include <cufft.h>
-#include <cutil_inline.h>
-#include <shrQATest.h>
+//#include <cutil_inline.h>
+//#include <shrQATest.h>
 #include "pca_utils.h"
 
-#define BLOCKSIZE 512
+#define BLOCKSIZE 512 
 
 typedef float2 Complex; 
 
@@ -178,10 +178,10 @@ int main()
     Kinc = (Complex*)malloc(memSize);
 
     // allocate memory on the device
-    cutilSafeCall(cudaMalloc((void**)&psiX_d, memSize));
-    cutilSafeCall(cudaMalloc((void**)&U1c_d, memSize));
-    cutilSafeCall(cudaMalloc((void**)&Kinc_d, memSize));
-    cutilSafeCall(cudaMalloc((void**)&psi_sum_d, sizeof(float)));
+    cudaMalloc((void**)&psiX_d, memSize);
+    cudaMalloc((void**)&U1c_d, memSize);
+    cudaMalloc((void**)&Kinc_d, memSize);
+    cudaMalloc((void**)&psi_sum_d, sizeof(float));
 
 
     for(int i=0; i<Nx; i++)
@@ -196,16 +196,16 @@ int main()
     scanf("%d", &imag_time);
     
     // copy data to the device
-    cutilSafeCall(cudaMemcpy(psiX_d, psiX , memSize,
-                              cudaMemcpyHostToDevice));
-    cutilSafeCall(cudaMemcpy(U1c_d, U1c, memSize,
-                              cudaMemcpyHostToDevice));
-    cutilSafeCall(cudaMemcpy(Kinc_d, Kinc , memSize,
-                              cudaMemcpyHostToDevice));
+    cudaMemcpy(psiX_d, psiX , memSize,
+                              cudaMemcpyHostToDevice);
+    cudaMemcpy(U1c_d, U1c, memSize,
+                              cudaMemcpyHostToDevice);
+    cudaMemcpy(Kinc_d, Kinc , memSize,
+                              cudaMemcpyHostToDevice);
 
     // CUFFT plan
     cufftHandle plan;
-    cufftSafeCall(cufftPlan1d(&plan, Nx, CUFFT_C2C, 1));
+    cufftPlan1d(&plan, Nx, CUFFT_C2C, 1);
 
     /* set up device execution configuration */
     blockSize = BLOCKSIZE;
@@ -223,19 +223,19 @@ int main()
 
                 x_unitary_imag<<<nBlocks, blockSize>>>(Nx, psiX_d, U1c_d, C1);
 
-                cufftSafeCall(cufftExecC2C(plan, (cufftComplex *)psiX_d,
-                                (cufftComplex *)psiX_d, CUFFT_FORWARD));
+                cufftExecC2C(plan, (cufftComplex *)psiX_d,
+                                (cufftComplex *)psiX_d, CUFFT_FORWARD);
                 k_unitary<<<nBlocks, blockSize>>>(Nx, psiX_d, Kinc_d);
 
-                cufftSafeCall(cufftExecC2C(plan, (cufftComplex *)psiX_d,
-                                (cufftComplex *)psiX_d, CUFFT_INVERSE));
+                cufftExecC2C(plan, (cufftComplex *)psiX_d,
+                                (cufftComplex *)psiX_d, CUFFT_INVERSE);
 
                 x_unitary_imag<<<nBlocks, blockSize>>>(Nx, psiX_d, U1c_d, C1);
 
                 // set length of psi_sum_d to zero
                 float zero_float = 0.0;
-                cutilSafeCall(cudaMemcpy(psi_sum_d, &zero_float , sizeof(float),
-                              cudaMemcpyHostToDevice));
+                cudaMemcpy(psi_sum_d, &zero_float , sizeof(float),
+                              cudaMemcpyHostToDevice);
                // normalize psiX_d
                 psi_length<<<nBlocks, blockSize>>>(Nx, psiX_d, psi_sum_d, dx);
                 normalize_psi<<<nBlocks, blockSize>>>(Nx, psiX_d, psi_sum_d);
@@ -248,8 +248,8 @@ int main()
         }
         // send the output to stdout, our main process will catch it
         // get the data back from CUDA
-        cutilSafeCall(cudaMemcpy(psiX, psiX_d, memSize,
-                              cudaMemcpyDeviceToHost));
+        cudaMemcpy(psiX, psiX_d, memSize,
+                              cudaMemcpyDeviceToHost);
 
         printf("np.array([");
         for(int i=0; i<Nx; i++)
@@ -270,12 +270,12 @@ int main()
 
                 x_unitary<<<nBlocks, blockSize>>>(Nx, psiX_d, U1c_d, C1);
 
-                cufftSafeCall(cufftExecC2C(plan, (cufftComplex *)psiX_d,
-                                (cufftComplex *)psiX_d, CUFFT_FORWARD));
+                cufftExecC2C(plan, (cufftComplex *)psiX_d,
+                                (cufftComplex *)psiX_d, CUFFT_FORWARD);
                 k_unitary<<<nBlocks, blockSize>>>(Nx, psiX_d, Kinc_d);
 
-                cufftSafeCall(cufftExecC2C(plan, (cufftComplex *)psiX_d,
-                                (cufftComplex *)psiX_d, CUFFT_INVERSE));
+                cufftExecC2C(plan, (cufftComplex *)psiX_d,
+                                (cufftComplex *)psiX_d, CUFFT_INVERSE);
 
                 x_unitary<<<nBlocks, blockSize>>>(Nx, psiX_d, U1c_d, C1);
 
@@ -284,8 +284,8 @@ int main()
         
             // send the output to stdout, our main process will catch it
             // get the data back from CUDA
-            cutilSafeCall(cudaMemcpy(psiX, psiX_d, memSize,
-                                  cudaMemcpyDeviceToHost));
+            cudaMemcpy(psiX, psiX_d, memSize,
+                                  cudaMemcpyDeviceToHost);
 
             printf("np.array([");
             for(int i=0; i<Nx; i++)

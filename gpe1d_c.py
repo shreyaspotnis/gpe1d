@@ -28,7 +28,7 @@ import os
 
 def gpe1d(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0,
             kernel='./gpec_cuda',
-            infile='/dev/shm/gpec_input', outfile='/dev/shm/gpec_output'):
+            infile='./gpec_input', outfile='./gpec_output'):
     def write_int(stream, i):
         stream.write('%d\n' % i)
     def write_float(stream, f):
