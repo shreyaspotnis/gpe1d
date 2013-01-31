@@ -7,3 +7,4 @@ LIBS = -lcufft
 all:
 	nvcc $(CUDA_FLAGS) -o gpec_cuda gpec_cuda.cu pca_utils.c $(CUDA_INC) $(CUDA_LIB) $(LIBS)
 
+
