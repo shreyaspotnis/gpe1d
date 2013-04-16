@@ -35,7 +35,7 @@ print "Time taken: ", end_time-start_time
 print "Running python"
 
 start_time = time()
-(K,T,psi_out,ep) = gpe1d.gpe1d(epsilon, kappa, Nt, dt, X, U,  psi0, Ntstore=10,
+(K,T,psi_out) = gpe1d.gpe1d(epsilon, kappa, Nt, dt, X, U,  psi0, Ntstore=10,
                                 imag_time = 1)
 end_time = time()
 print "Time taken: ", end_time-start_time

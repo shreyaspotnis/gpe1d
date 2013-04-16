@@ -132,5 +132,5 @@ def gpe1d(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time = 0,
                 # If the absolute error is less than specified, stop now.
                 psi_out = psi
                 break
-    return (K,T,psi_out,ep)
+    return (K,T,psi_out)
 

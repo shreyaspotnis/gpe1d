@@ -26,7 +26,6 @@ import numpy.fft as fft
 import sys
 import subprocess 
 import struct
-from time import time 
 
 def gpe1d(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0,
             kernel='./gpec_cuda'):
@@ -38,7 +37,7 @@ def gpe1d(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0,
     h = X[1]-X[0]   # h is the X mesh spacing
     M = np.size(X)  # Number of points in the X grid
     K = fft.fftfreq(M,h)*2.0*np.pi  # k values, used in the fourier spectrum analysis
-    T = np.zeros(Ntstore)
+    T = np.zeros(Ntstore)*Ntskip*k
     if imag_time:
         prefactor = 1.0
     else:
@@ -64,11 +63,8 @@ def gpe1d(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0,
     cuda_process.stdin.write(U1_32.data)
     cuda_process.stdin.write(Kin_32.data)
 
-    start_time = time()
     data_from_cuda = cuda_process.stdout.read()
-    print "Read time: ", time()-start_time
 
-    start_time = time()
     if imag_time:
         psi_out_32 = np.ndarray(M, dtype='complex64', buffer=data_from_cuda)
         psi_out = psi_out_32.astype('complex128')
@@ -76,6 +72,5 @@ def gpe1d(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0,
         psi_out_32 = np.ndarray((Ntstore, M), dtype='complex64', 
                                 buffer=data_from_cuda)
         psi_out = psi_out_32.astype('complex128')
-    print "Process time :", time() - start_time
 
     return (K,T,psi_out)
