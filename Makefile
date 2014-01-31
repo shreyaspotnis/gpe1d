@@ -5,6 +5,6 @@ CUDA_LIB = -L$(SCINET_CUDA_LIB)
 LIBS = -lcufft 
 
 all:
-	nvcc $(CUDA_FLAGS) -o gpec_cuda gpec_cuda.cu pca_utils.c $(CUDA_INC) $(CUDA_LIB) $(LIBS)
+	nvcc $(CUDA_FLAGS) -o bin/gpe1d_cuda src_cuda/gpec_cuda.cu src_cuda/pca_utils.c $(CUDA_INC) $(CUDA_LIB) $(LIBS)
 
 
