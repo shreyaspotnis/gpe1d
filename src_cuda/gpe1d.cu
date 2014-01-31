@@ -32,7 +32,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define BLOCKSIZE 512 
 
 typedef float2 Complex; 
-__device__ float psi_sum_d;
 
 int readInt ( FILE *fp) {
     int a;
@@ -124,6 +123,54 @@ static __global__ void psi_length(int Nx, Complex *psiX, float *sum_total,
     return;
 }
 
+static __global__ void psi_block_length(int Nx, Complex* psiX, float
+                                        *psi_block_sum, float dx) {
+    // note: works only for Nx which are powers of 2
+    __shared__ float  sum[BLOCKSIZE];
+    int i = threadIdx.x + blockDim.x * blockIdx.x;
+    sum[threadIdx.x] = psiX[i].x*psiX[i].x + psiX[i].y*psiX[i].y;
+    // To make sure all threads in a block have the sum[] value:
+    __syncthreads();
+    int nTotalThreads = blockDim.x;  // Total number of active threads;
+    // only the first half of the threads will be active.
+    while(nTotalThreads > 1) {
+        int halfPoint = (nTotalThreads >> 1);	// divide by two
+        if (threadIdx.x < halfPoint) {
+            int thread2 = threadIdx.x + halfPoint;
+            sum[threadIdx.x] += sum[thread2];  // Pairwise summation
+        }
+        __syncthreads();
+        nTotalThreads = halfPoint;  // Reducing the binary tree size by two
+    }
+    if (threadIdx.x == 0)
+        psi_block_sum[blockIdx.x] = sum[0] * dx;
+    return;
+}
+
+static __global__ void psi_total_length(float *psi_block_sum,
+                                        float *psi_total_sum) {
+    extern __shared__ float sum[];
+    // Copying from global to shared memory: 
+    sum[threadIdx.x] = psi_block_sum[threadIdx.x];
+    // To make sure all threads in a block have the sum[] value:
+    __syncthreads();
+    int nTotalThreads = blockDim.x;  // Total number of active threads;
+    // only the first half of the threads will be active.
+    while(nTotalThreads > 1) {
+        int halfPoint = (nTotalThreads >> 1); // divide by two
+        if (threadIdx.x < halfPoint) {
+            int thread2 = threadIdx.x + halfPoint;
+            sum[threadIdx.x] += sum[thread2];  // Pairwise summation
+        }
+        __syncthreads();
+        nTotalThreads = halfPoint;
+    }
+    if (threadIdx.x == 0) {
+        *psi_total_sum = sum[0];
+    }
+    return;
+}
+
 static __global__ void normalize_psi(int Nx, Complex *psiX, float *sum_total)
 {
     const int numThreads = blockDim.x * gridDim.x;
@@ -148,6 +195,7 @@ int main()
     Complex *psiX, *U1c, *Kinc;
     Complex *psiX_d, *U1c_d, *Kinc_d;
     float *psi_sum_d;
+    float *psi_block_sum_d;
 
     // allocate memory
     memSize = sizeof(Complex) * Nx;
@@ -178,6 +226,9 @@ int main()
     /* set up device execution configuration */
     blockSize = BLOCKSIZE;
     nBlocks = Nx / blockSize + (Nx % blockSize > 0);
+    cudaMalloc((void**)&psi_block_sum_d, nBlocks * sizeof(float));
+    // initialize block sum to zero
+    cudaMemset(psi_block_sum_d, 0, nBlocks * sizeof(float));
     
     pca_time tt;
     tick(&tt);
@@ -202,10 +253,12 @@ int main()
             cudaDeviceSynchronize ();
 
             if(imag_time) {
-                float zero_float = 0.0;
-                cudaMemcpy(psi_sum_d, &zero_float , sizeof(float),
-                              cudaMemcpyHostToDevice);
-                psi_length<<<nBlocks, blockSize>>>(Nx, psiX_d, psi_sum_d, dx);
+                // psi_length<<<nBlocks, blockSize>>>(Nx, psiX_d, psi_sum_d, dx);
+                psi_block_length<<<nBlocks, blockSize>>>(Nx, psiX_d,
+                                                         psi_block_sum_d, dx); 
+                psi_total_length<<<1, nBlocks, nBlocks * sizeof(float)>>>
+                                                (psi_block_sum_d, psi_sum_d);
+
                 normalize_psi<<<nBlocks, blockSize>>>(Nx, psiX_d, psi_sum_d);
              }               
         }
@@ -227,6 +280,7 @@ int main()
     cudaFree(U1c_d);
     cudaFree(Kinc_d);
     cudaFree(psi_sum_d);
+    cudaFree(psi_block_sum_d);
     free(psiX);
     free(U1c);
     free(Kinc);

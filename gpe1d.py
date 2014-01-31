@@ -175,11 +175,8 @@ def gpe1d_cuda(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0):
     cuda_process.stdin.write(U1_32.data)
     cuda_process.stdin.write(Kin_32.data)
 
-    start_time = time()
     data_from_cuda = cuda_process.stdout.read()
-    print "Read time: ", time()-start_time
 
-    start_time = time()
     if imag_time:
         psi_out_32 = np.ndarray(M, dtype='complex64', buffer=data_from_cuda)
         psi_out = psi_out_32.astype('complex128')
@@ -187,6 +184,5 @@ def gpe1d_cuda(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0):
         psi_out_32 = np.ndarray((Ntstore, M), dtype='complex64', 
                                 buffer=data_from_cuda)
         psi_out = psi_out_32.astype('complex128')
-    print "Process time :", time() - start_time
 
     return (K,T,psi_out)
