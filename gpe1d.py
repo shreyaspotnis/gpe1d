@@ -27,7 +27,7 @@ import sys
 import subprocess 
 import struct
 from time import time 
-
+import os
 
 def gpe1d_python(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time = 0, 
             error = 0.0002):
@@ -139,8 +139,8 @@ def gpe1d_python(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time = 0,
                 break
     return (K,T,psi_out,ep)
 
-def gpe1d_cuda(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0,
-            kernel='bin/gp1d_cuda'):
+def gpe1d_cuda(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0):
+    kernel = os.path.join(os.path.dirname(__file__), 'bin/gpe1d_cuda')
     # start the process
     cuda_process = subprocess.Popen(kernel, 
                                         stdin=subprocess.PIPE,

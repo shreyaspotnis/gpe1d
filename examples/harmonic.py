@@ -2,7 +2,7 @@
 a simple harmonic potential."""
 
 import numpy as np
-import gpe1d
+from gpe1d.gpe1d import gpe1d_python
 import matplotlib.pyplot as plt
 
 from scipy.constants import pi, hbar
@@ -28,11 +28,11 @@ psi_analytical = (pi)**-0.25*np.exp(-X**2/2.0)
 psi_disp = (pi)**-0.25*np.exp(-(X-2.0)**2/2.0)
 # normalize it
 
-(K, T, psi_ground, ep) = gpe1d.gpe1d(epsilon=1.0, kappa=0.0, N=20000, 
+(K, T, psi_ground, ep) = gpe1d_python(epsilon=1.0, kappa=0.0, N=2000, 
                             k=0.001, X=X, U=U, psi0=psi_guess, Ntstore=10, 
                             imag_time=1, error=0.0002)
 # look at evolution of a displaced ground state
-(K, T, psi_out, ep) = gpe1d.gpe1d(epsilon=1.0, kappa=0.0, N=20000, 
+(K, T, psi_out, ep) = gpe1d_python(epsilon=1.0, kappa=0.0, N=2000, 
                             k=0.001, X=X, U=U, psi0=psi_disp, Ntstore=10, 
                             imag_time=0, error=0.0002)
 

@@ -1,8 +1,7 @@
 import numpy as np
 #import matplotlib.pyplot as plt
 from time import time 
-import gpe1d
-import gpe1d_c
+from gpe1d.gpe1d import gpe1d_python, gpe1d_cuda
 import sys
 
 def Prob(psi):
@@ -27,15 +26,15 @@ print "Nx = ", nx, ", Nt = ", Nt
 
 print "Running cuda"
 start_time = time()
-(K,T,psi_out_c) = gpe1d_c.gpe1d(epsilon, kappa, Nt, dt, X, U,  psi0, Ntstore=10,
-                                imag_time = 1, kernel='./gpec_cuda')
+(K,T,psi_out_c) = gpe1d_cuda(epsilon, kappa, Nt, dt, X, U,  psi0, Ntstore=10,
+                                imag_time = 1)
 end_time = time()
 print "Time taken: ", end_time-start_time
 
 print "Running python"
 
 start_time = time()
-(K,T,psi_out,ep) = gpe1d.gpe1d(epsilon, kappa, Nt, dt, X, U,  psi0, Ntstore=10,
+(K,T,psi_out,ep) = gpe1d_python(epsilon, kappa, Nt, dt, X, U,  psi0, Ntstore=10,
                                 imag_time = 1)
 end_time = time()
 print "Time taken: ", end_time-start_time
