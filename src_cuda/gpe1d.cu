@@ -31,7 +31,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define BLOCKSIZE 512 
 
-typedef float2 Complex; 
+// Set this during compile
+#ifdef _USE_DOUBLE_PRECISION
+typedef double2 Complex;
+typedef double Ipp;
+#else
+typedef float2 Complex;
+typedef double Ipp;
+#endif
 
 int readInt ( FILE *fp) {
     int a;
@@ -39,20 +46,20 @@ int readInt ( FILE *fp) {
     return a;
 }
 
-float readFloat ( FILE *fp) {
-    float a;
-    fread (&a, 1, sizeof(float), fp );
+Ipp readFloat ( FILE *fp) {
+    Ipp a;
+    fread (&a, 1, sizeof(Ipp), fp );
     return a;
 }
 
 // The same as the x unitary we had in our CPU version
 static __global__ void x_unitary(int Nx, Complex *psiX, Complex *U1c, 
-                                float C1)
+                                Ipp C1)
 {
     const int numThreads = blockDim.x * gridDim.x;
     const int threadID = blockIdx.x * blockDim.x + threadIdx.x;
     for (int i = threadID; i < Nx; i += numThreads) {
-        float an, es, ec, temp;
+        Ipp an, es, ec, temp;
         an = C1*(psiX[i].x*psiX[i].x + psiX[i].y*psiX[i].y);
         es = sin(an);
         ec = cos(an);
@@ -67,12 +74,12 @@ static __global__ void x_unitary(int Nx, Complex *psiX, Complex *U1c,
 
 // The same as the x unitary we had in our CPU version
 static __global__ void x_unitary_imag(int Nx, Complex *psiX, Complex *U1c, 
-                                        float C1)
+                                        Ipp C1)
 {
     const int numThreads = blockDim.x * gridDim.x;
     const int threadID = blockIdx.x * blockDim.x + threadIdx.x;
     for (int i = threadID; i < Nx; i += numThreads) {
-        float an, ex, temp;
+        Ipp an, ex, temp;
         an = C1*(psiX[i].x*psiX[i].x + psiX[i].y*psiX[i].y);
         ex = exp(an);
         psiX[i].x *= ex;
@@ -88,18 +95,18 @@ static __global__ void k_unitary(int Nx, Complex *psiX, Complex *Kinc)
     const int numThreads = blockDim.x * gridDim.x;
     const int threadID = blockIdx.x * blockDim.x + threadIdx.x;
     for (int i = threadID; i < Nx; i += numThreads) {
-        float temp;
+        Ipp temp;
         temp = psiX[i].x;
         psiX[i].x = ( Kinc[i].x * psiX[i].x - Kinc[i].y * psiX[i].y );
         psiX[i].y = ( Kinc[i].x * psiX[i].y + Kinc[i].y * temp );
     }
 }
-
-static __global__ void psi_length(int Nx, Complex *psiX, float *sum_total, 
-                float dx)
+/*
+static __global__ void psi_length(int Nx, Complex *psiX, Ipp *sum_total, 
+                Ipp dx)
 {
     // note: works only for Nx which are powers of 2
-    __shared__ float  sum[BLOCKSIZE];
+    __shared__ Ipp  sum[BLOCKSIZE];
     int i = threadIdx.x + blockDim.x * blockIdx.x;
     sum[threadIdx.x] = psiX[i].x*psiX[i].x + psiX[i].y*psiX[i].y;
     // To make sure all threads in a block have the sum[] value:
@@ -121,12 +128,12 @@ static __global__ void psi_length(int Nx, Complex *psiX, float *sum_total,
     }
 
     return;
-}
+}*/
 
-static __global__ void psi_block_length(int Nx, Complex* psiX, float
-                                        *psi_block_sum, float dx) {
+static __global__ void psi_block_length(int Nx, Complex* psiX, Ipp
+                                        *psi_block_sum, Ipp dx) {
     // note: works only for Nx which are powers of 2
-    __shared__ float  sum[BLOCKSIZE];
+    __shared__ Ipp  sum[BLOCKSIZE];
     int i = threadIdx.x + blockDim.x * blockIdx.x;
     sum[threadIdx.x] = psiX[i].x*psiX[i].x + psiX[i].y*psiX[i].y;
     // To make sure all threads in a block have the sum[] value:
@@ -147,9 +154,9 @@ static __global__ void psi_block_length(int Nx, Complex* psiX, float
     return;
 }
 
-static __global__ void psi_total_length(float *psi_block_sum,
-                                        float *psi_total_sum) {
-    extern __shared__ float sum[];
+static __global__ void psi_total_length(Ipp *psi_block_sum,
+                                        Ipp *psi_total_sum) {
+    extern __shared__ Ipp sum[];
     // Copying from global to shared memory: 
     sum[threadIdx.x] = psi_block_sum[threadIdx.x];
     // To make sure all threads in a block have the sum[] value:
@@ -171,7 +178,7 @@ static __global__ void psi_total_length(float *psi_block_sum,
     return;
 }
 
-static __global__ void normalize_psi(int Nx, Complex *psiX, float *sum_total)
+static __global__ void normalize_psi(int Nx, Complex *psiX, Ipp *sum_total)
 {
     const int numThreads = blockDim.x * gridDim.x;
     const int threadID = blockIdx.x * blockDim.x + threadIdx.x;
@@ -186,16 +193,16 @@ int main()
     int Nx = readInt(stdin);
     int Ntstore = readInt(stdin);
     int Ntskip = readInt(stdin);
-    float C1 = readFloat(stdin);
-    float dx = readFloat(stdin);
+    Ipp C1 = readFloat(stdin);
+    Ipp dx = readFloat(stdin);
     int imag_time = readInt(stdin);
     
     int memSize;
     int blockSize, nBlocks;
     Complex *psiX, *U1c, *Kinc;
     Complex *psiX_d, *U1c_d, *Kinc_d;
-    float *psi_sum_d;
-    float *psi_block_sum_d;
+    Ipp *psi_sum_d;
+    Ipp *psi_block_sum_d;
 
     // allocate memory
     memSize = sizeof(Complex) * Nx;
@@ -208,7 +215,7 @@ int main()
     cudaMalloc((void**)&psiX_d, memSize);
     cudaMalloc((void**)&U1c_d, memSize);
     cudaMalloc((void**)&Kinc_d, memSize);
-    cudaMalloc((void**)&psi_sum_d, sizeof(float));
+    cudaMalloc((void**)&psi_sum_d, sizeof(Ipp));
 
     fread(psiX, Nx, sizeof(Complex), stdin);
     fread(U1c, Nx, sizeof(Complex), stdin);
@@ -226,9 +233,9 @@ int main()
     /* set up device execution configuration */
     blockSize = BLOCKSIZE;
     nBlocks = Nx / blockSize + (Nx % blockSize > 0);
-    cudaMalloc((void**)&psi_block_sum_d, nBlocks * sizeof(float));
+    cudaMalloc((void**)&psi_block_sum_d, nBlocks * sizeof(Ipp));
     // initialize block sum to zero
-    cudaMemset(psi_block_sum_d, 0, nBlocks * sizeof(float));
+    cudaMemset(psi_block_sum_d, 0, nBlocks * sizeof(Ipp));
     
     pca_time tt;
     tick(&tt);
@@ -256,7 +263,7 @@ int main()
                 // psi_length<<<nBlocks, blockSize>>>(Nx, psiX_d, psi_sum_d, dx);
                 psi_block_length<<<nBlocks, blockSize>>>(Nx, psiX_d,
                                                          psi_block_sum_d, dx); 
-                psi_total_length<<<1, nBlocks, nBlocks * sizeof(float)>>>
+                psi_total_length<<<1, nBlocks, nBlocks * sizeof(Ipp)>>>
                                                 (psi_block_sum_d, psi_sum_d);
 
                 normalize_psi<<<nBlocks, blockSize>>>(Nx, psiX_d, psi_sum_d);
