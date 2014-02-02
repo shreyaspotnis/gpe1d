@@ -1,7 +1,7 @@
 import numpy as np
 #import matplotlib.pyplot as plt
 from time import time 
-from gpe1d.gpe1d import gpe1d_python, gpe1d_cuda, gpe1d_cuda_double
+from gpe1d.gpe1d import gpe1d_python, gpe1d_cuda
 import sys
 
 def Prob(psi):
@@ -30,8 +30,8 @@ print "Time taken for CUDA float: ", end_time-start_time
 
 print "Running cuda double"
 start_time = time()
-(K,T,psi_out_double) = gpe1d_cuda_double(epsilon, kappa, Nt, dt, X, U,  psi0, Ntstore=10,
-                                imag_time = 1)
+(K,T,psi_out_double) = gpe1d_cuda(epsilon, kappa, Nt, dt, X, U,  psi0, Ntstore=10,
+                                imag_time = 1, float_or_double='double')
 end_time = time()
 print "Time taken for CUDA double: ", end_time-start_time
 

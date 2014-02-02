@@ -139,12 +139,22 @@ def gpe1d_python(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time = 0,
                 break
     return (K,T,psi_out,ep)
 
-def gpe1d_cuda(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0):
-    kernel = os.path.join(os.path.dirname(__file__), 'bin/gpe1d_cuda')
+def gpe1d_cuda(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0,
+               float_or_double='float'):
+    if float_or_double == 'float':
+        cuda_binary_filename = 'bin/gpe1d_cuda_float'
+        struct_pack_format = 'iiiiff'
+        data_type = 'complex64'
+    else:
+        cuda_binary_filename = 'bin/gpe1d_cuda_double'
+        struct_pack_format = 'iiiidd'
+        data_type = 'complex128'
+
+    cuda_binary_path = os.path.join(os.path.dirname(__file__),
+                                    cuda_binary_filename)
     # start the process
-    cuda_process = subprocess.Popen(kernel, 
-                                        stdin=subprocess.PIPE,
-                                        stdout=subprocess.PIPE)
+    cuda_process = subprocess.Popen(cuda_binary_path, stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE)
     Ntskip = N/(Ntstore-1)
     h = X[1]-X[0]   # h is the X mesh spacing
     M = np.size(X)  # Number of points in the X grid
@@ -154,55 +164,7 @@ def gpe1d_cuda(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0):
         prefactor = 1.0
     else:
         prefactor = 1.0j
-    U1 = np.exp(-prefactor*U/2.0/epsilon*k)
-    c2 = -kappa*k/2.0/epsilon
-    Kin = np.exp(-prefactor*epsilon*K**2*k/2.0)/M
-
-    # IMPORTANT: we are dividing Kin by M, as the fftw and ifftw routines
-    # are not normalized - ie ifft(fft(A)) would give is M*A, where M is
-    # the number of elements in A. Hence, we need to divide by M
-
-    # send all the required information
-    cuda_process.stdin.write(struct.pack('iiiiff', 
-                M, Ntstore, Ntskip, imag_time, c2, h))
-
-    # make 32bit float versions of arrays being sent out 
-    psi0_32 = psi0.astype('complex64')
-    U1_32 = U1.astype('complex64')
-    Kin_32 = Kin.astype('complex64')
-
-    cuda_process.stdin.write(psi0_32.data)
-    cuda_process.stdin.write(U1_32.data)
-    cuda_process.stdin.write(Kin_32.data)
-
-    data_from_cuda = cuda_process.stdout.read()
-
-    if imag_time:
-        psi_out_32 = np.ndarray(M, dtype='complex64', buffer=data_from_cuda)
-        psi_out = psi_out_32.astype('complex128')
-    else:
-        psi_out_32 = np.ndarray((Ntstore, M), dtype='complex64', 
-                                buffer=data_from_cuda)
-        psi_out = psi_out_32.astype('complex128')
-
-    return (K,T,psi_out)
-
-def gpe1d_cuda_double(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0):
-    kernel = os.path.join(os.path.dirname(__file__), 'bin/gpe1d_cuda_double')
-    # start the process
-    cuda_process = subprocess.Popen(kernel, 
-                                        stdin=subprocess.PIPE,
-                                        stdout=subprocess.PIPE)
-    Ntskip = N/(Ntstore-1)
-    h = X[1]-X[0]   # h is the X mesh spacing
-    M = np.size(X)  # Number of points in the X grid
-    K = fft.fftfreq(M,h)*2.0*np.pi  # k values, used in the fourier spectrum analysis
-    T = np.zeros(Ntstore)
-    if imag_time:
-        prefactor = 1.0
-    else:
-        prefactor = 1.0j
-    U1 = np.exp(-prefactor*U/2.0/epsilon*k) + 0j
+    U1 = np.exp(-prefactor*U/2.0/epsilon*k) + 0j # adding 0j to make U1 complex
     c2 = -kappa*k/2.0/epsilon
     Kin = np.exp(-prefactor*epsilon*K**2*k/2.0)/M + 0j
 
@@ -211,24 +173,26 @@ def gpe1d_cuda_double(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0
     # the number of elements in A. Hence, we need to divide by M
 
     # send all the required information
-    info = struct.pack('iiiidd', 
-                M, Ntstore, Ntskip, imag_time, c2, h)
-    print(info.__repr__())
-    cuda_process.stdin.write(info)
-    print(M, Ntstore, Ntskip, c2, h, imag_time)
+    cuda_process.stdin.write(struct.pack(struct_pack_format, M, Ntstore, Ntskip,
+                                         imag_time, c2, h))
 
-    print("Bytes in psi0 python: ", len(psi0.data))
+    if float_or_double == 'float':
+        # make 32bit float versions of arrays being sent out 
+        psi0 = psi0.astype(data_type)
+        U1 = U1.astype(data_type)
+        Kin = Kin.astype(data_type)
+
     cuda_process.stdin.write(psi0.data)
-    print("Bytes in U1 python: ", len(U1.data))
     cuda_process.stdin.write(U1.data)
-    print("Bytes in Kin python: ", len(Kin.data))
     cuda_process.stdin.write(Kin.data)
 
     data_from_cuda = cuda_process.stdout.read()
 
-    if imag_time:
-        psi_out = np.ndarray(M, dtype='complex128', buffer=data_from_cuda)
-    else:
-        psi_out = np.ndarray((Ntstore, M), dtype='complex128', 
-                                buffer=data_from_cuda)
+    psi_shape = M if imag_time else (Ntstore, M)
+    psi_out = np.ndarray(psi_shape, dtype=data_type, buffer=data_from_cuda)
+    if float_or_double == 'float':
+        # convert data received from cuda back to double
+        psi_out = psi_out.astype('complex128')
+
     return (K,T,psi_out)
+
