@@ -37,7 +37,7 @@ typedef double2 Complex;
 typedef double Ipp;
 #else
 typedef float2 Complex;
-typedef double Ipp;
+typedef float Ipp;
 #endif
 
 int readInt ( FILE *fp) {
@@ -48,9 +48,19 @@ int readInt ( FILE *fp) {
 
 Ipp readFloat ( FILE *fp) {
     Ipp a;
+    fprintf(stderr, "%d", sizeof(Ipp));
     fread (&a, 1, sizeof(Ipp), fp );
     return a;
 }
+
+struct InputData {
+    int Nx;
+    int Ntstore;
+    int Ntskip;
+    int imag_time;
+    Ipp C1;
+    Ipp dx;
+};
 
 // The same as the x unitary we had in our CPU version
 static __global__ void x_unitary(int Nx, Complex *psiX, Complex *U1c, 
@@ -190,12 +200,26 @@ static __global__ void normalize_psi(int Nx, Complex *psiX, Ipp *sum_total)
 
 int main()
 {
+    fprintf(stderr, "Start program\n");
+    InputData input;
+    fread (&input, 1, sizeof(InputData), stdin);
+    int Nx = input.Nx;
+    int Ntstore = input.Ntstore;
+    int Ntskip = input.Ntskip;
+    int imag_time = input.imag_time;
+    Ipp C1 = input.C1;
+    Ipp dx = input.dx;
+
+    /*
     int Nx = readInt(stdin);
     int Ntstore = readInt(stdin);
     int Ntskip = readInt(stdin);
     Ipp C1 = readFloat(stdin);
     Ipp dx = readFloat(stdin);
-    int imag_time = readInt(stdin);
+    int imag_time = readInt(stdin);*/
+    fprintf(stderr, "have ints and doubles\n");
+    fprintf(stderr, "Nx:%d Ntstore %d Ntskip %d C1 %f dx %f imag_time %d",
+                    Nx, Ntstore, Ntskip, C1, dx, imag_time);
     
     int memSize;
     int blockSize, nBlocks;
@@ -217,10 +241,16 @@ int main()
     cudaMalloc((void**)&Kinc_d, memSize);
     cudaMalloc((void**)&psi_sum_d, sizeof(Ipp));
 
+    fprintf(stderr, "size of psiX cuda:%d\n", Nx * sizeof(Complex));
     fread(psiX, Nx, sizeof(Complex), stdin);
-    fread(U1c, Nx, sizeof(Complex), stdin);
-    fread(Kinc, Nx, sizeof(Complex), stdin);
+    fprintf(stderr, "have psiX");
 
+    fread(U1c, Nx, sizeof(Complex), stdin);
+    fprintf(stderr, "have U1c");
+    fread(Kinc, Nx, sizeof(Complex), stdin);
+    fprintf(stderr, "have Kinc");
+
+    fprintf(stderr, "have arrays\n");
     // copy data to the device
     cudaMemcpy(psiX_d, psiX , memSize, cudaMemcpyHostToDevice);
     cudaMemcpy(U1c_d, U1c, memSize, cudaMemcpyHostToDevice);
@@ -228,7 +258,11 @@ int main()
 
     // CUFFT plan
     cufftHandle plan;
+#ifdef _USE_DOUBLE_PRECISION
+    cufftPlan1d(&plan, Nx, CUFFT_Z2Z, 1);
+#else
     cufftPlan1d(&plan, Nx, CUFFT_C2C, 1);
+#endif
 
     /* set up device execution configuration */
     blockSize = BLOCKSIZE;
