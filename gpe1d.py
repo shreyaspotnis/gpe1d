@@ -1,8 +1,8 @@
-"""A module which provides numerical routines to solve the one 
+"""A module which provides numerical routines to solve the one
 dimensional Gross Pitaevski equation.
 
 Exported functions:
-gpe1d - Numerically solve the 1d GPE using time splitting fourier spectral 
+gpe1d - Numerically solve the 1d GPE using time splitting fourier spectral
         method.
 
 Copyright 2012 Shreyas Potnis
@@ -23,37 +23,104 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import numpy as np
 import numpy.fft as fft
-import sys
-import subprocess 
+import subprocess
 import struct
-from time import time 
 import os
 
-def gpe1d_python(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time = 0, 
-            error = 0.0002):
+
+def npse1d_python(kappa, Nt, dt, X, U, psi0, Ntstore, imag_time=0):
+    """npse1d_python - Numerically solve the non-polynomial schrodinger
+    equation using time splitting fourier spectral method.
+
+    The equation solved:
+    i*dpsi/dt = (-1/2 d^2/dx^2 + U(x) + kappa|psi|^2 / Q + (Q + 1/Q)/2)psi
+    Q = (1 + kappa*|psi|^2) ** 0.5
+
+    kappa = 2 * a_s * N / a_perp
+    Nt - number of time steps
+    dt - time step
+    X  - 1d array of X steps
+    U  - potential energy array (in units of hbar * omega_perp)
+    psi0 - initial wavefunction
+    imag_time = 0 for real time propagation, else 1
+    """
+    Ntskip = Nt/(Ntstore-1)
+    dx = X[1]-X[0]   # h is the X mesh spacing
+    Nx = np.size(X)  # Number of points in the X grid
+    K = fft.fftfreq(Nx, dx) * 2.0 * np.pi  # k values, used in the fourier
+                                           # spectrum analysis
+    T = np.zeros(Ntstore)
+    if imag_time == 0:
+        prefactor = 1j
+        psi_out = np.zeros((Ntstore, Nx), complex)
+        psi_out[0, :] = psi0
+    else:
+        prefactor = 1
+        psi_out = np.zeros(Nx, complex)
+
+    U1 = -prefactor * U * dt / 2.0
+    C1 = -prefactor * kappa * dt / 2.0
+    C2 = -prefactor * dt / 2.0 / 2.0
+    Kin = np.exp(-prefactor * K**2 * dt / 2.0)
+    psi = psi0
+
+    for t1 in range(Ntstore-1):
+        for t2 in range(Ntskip):
+            # Split the entire time stepping into three steps.
+            # The first is stepping by time k/2 but only applying the potential
+            # and the mean field parts of the unitary
+            psi_squared = psi * np.conj(psi)
+            Q = (1 + kappa * psi_squared) ** 0.5
+            psi = np.exp(U1+C1 * psi_squared / Q + C2 * (Q + 1/Q)) * psi
+            # The second part is applying the Kinetic part of the unitary. This
+            # is done by taking the fourier transform of psi, so applying this
+            # unitary in k space is simply multiplying it by another array
+            psi = fft.ifft(Kin*fft.fft(psi))
+            # The third part is again stepping by k/2 and applying the
+            # potential and interaction part of the unitary
+            psi_squared = psi * np.conj(psi)
+            Q = (1 + kappa * psi_squared) ** 0.5
+            psi = np.exp(U1 + C1 * psi_squared / Q + C2 * (Q + 1.0/Q)) * psi
+            if imag_time:
+                # If we are propagating in imaginary time, then the solution
+                # dies down, we need to explicitly normalize it
+                psi_int = np.sum(np.conj(psi) * psi) * dx
+                psi /= psi_int**0.5
+
+        # Store the wavefuction in psi_out
+        T[t1+1] = (t1+1) * dt * Ntskip
+        if imag_time == 0:
+            psi_out[t1+1, :] = psi
+    if imag_time == 1:
+        psi_out = psi
+    return (K, T, psi_out)
+
+
+def gpe1d_python(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0,
+                 error=0.0002):
     """gpe1d - Numerically solve the 1d GPE using time splitting fourier
     spectral method.
-    
-    gpe1d(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time = 0, 
+
+    gpe1d(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time = 0,
             error = 0.0002):
 
     Numerically solves dimensionless GPE equation:
         i*epsilon dpsi/dt = (-epsilon*2/2 d^2/dx^2 + U(x) + kappa|psi|^2)psi
         see W. Boa et al. / Journal of Computational Physics 187 (2003) 318-342
-        for details. 
+        for details.
 
     Arguments:
     epsilon - (a0/xs)^2 where a0 is the ground state harmonic oscillator length
-    and xs is the size of the condensate. For no interactions, epsilon = 1, 
+    and xs is the size of the condensate. For no interactions, epsilon = 1,
     whereas for higher interactions, makes sense to choose a higher epsilon.
 
     kappa - characterizes the strength of the interactions, for the 1D case,
     this depends on the transverse trapping frequencies
-    
+
     N - number of time steps to take
 
     k - size of a time step
-    
+
     X - numpy 1d array, grid of all X values
 
     U - numpy 1d array, 1D potential, usually taken to be 0.5*X**2
@@ -62,32 +129,32 @@ def gpe1d_python(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time = 0,
 
     Ntstore - number of psi profiles to store as the simulation progresses.
     These are stored at equally spaced time intervals
-    
+
     imag_time - whether or not to propagate in imaginary time. Propagate in
-    imaginary time to find the ground state of the given potential. 
+    imaginary time to find the ground state of the given potential.
 
     error - if propagating in imaginary time, this sets the absolute error
-    threshold. If the error is psi goes below this, the solution is assumed 
+    threshold. If the error is psi goes below this, the solution is assumed
     to have  converged and the simulation stops.
 
     Returns:
-    K - numpy 1d array, grid of k values computed using fftfreq. Useful while 
+    K - numpy 1d array, grid of k values computed using fftfreq. Useful while
     analyzing fft of psi.
-    
+
     T - numpy 1d array, the time steps for which psi is stored
-    
+
     psi_out - complex numpy 2d array, size Ntstore*size(X). The output of the
     simulators at different times.
 
     ep - useless if real time propagation. For imaginary time propagation, gives
     the absolute error in the wavefunction. Useful to see how the solution
     converges.
-    
+
     """
     Ntskip = N/(Ntstore-1)
     h = X[1]-X[0]   # h is the X mesh spacing
     M = np.size(X)  # Number of points in the X grid
-    K = fft.fftfreq(M,h)*2.0*np.pi  # k values, used in the fourier spectrum 
+    K = fft.fftfreq(M,h)*2.0*np.pi  # k values, used in the fourier spectrum
                                     # analysis
     T = np.zeros(Ntstore)
     if imag_time == 0:
@@ -129,7 +196,7 @@ def gpe1d_python(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time = 0,
         T[t1+1] = (t1+1)*k*Ntskip
         if imag_time==0:
             psi_out[t1+1,:] = psi
-        else:    
+        else:
             # Calculate how much the solution has converged.
             ep[t1+1] = np.sum(np.abs(psiprev-psi))/M
             psiprev = psi
@@ -177,7 +244,7 @@ def gpe1d_cuda(epsilon, kappa, N, k, X, U,  psi0, Ntstore=10, imag_time=0,
                                          imag_time, c2, h))
 
     if float_or_double == 'float':
-        # make 32bit float versions of arrays being sent out 
+        # make 32bit float versions of arrays being sent out
         psi0 = psi0.astype(data_type)
         U1 = U1.astype(data_type)
         Kin = Kin.astype(data_type)
